@@ -2,6 +2,7 @@
 import os
 import sys
 import random
+import base64
 from datetime import datetime, timedelta
 from colorama import init
 from termcolor import colored
@@ -114,7 +115,7 @@ app = flask.Flask(__name__)
 M = MainMusicAlarm()
 
 
-@app.route('/api/v1/stopAlarm')
+@app.route('/api/v1/stopAlarms')
 def stopAlarm():
     M.stopAlarm()
     return flask.jsonify({'success': True})
@@ -122,7 +123,7 @@ def stopAlarm():
 
 @app.route('/api/v1/getAlarms')
 def getAlarms():
-    return flask.jsonify(Alarm.select().dicts().get())
+    return flask.jsonify(list(Alarm.select().dicts()))
 
 
 @app.route('/<path:path>')
@@ -132,7 +133,17 @@ def default_serve(path):
 
 @app.route('/')
 def main_page():
-    return flask.send_from_directory('static', 'index.html')
+    return flask.render_template('index.html', site="Python Application Webinterface")
+
+
+@app.route('/alarms')
+def alarms_page():
+    return flask.render_template('alarms.html', site="Alarms", alarms=Alarm.select().dicts())
+
+
+@app.route('/history')
+def history_page():
+    return flask.render_template('history.html', site="History")
 
 if (__name__ == "__main__"):
     threading.Thread(target=M.checkAlarms).start()
