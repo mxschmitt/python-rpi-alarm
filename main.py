@@ -3,7 +3,8 @@ import os
 import sys
 import random
 import base64
-from datetime import datetime, timedelta
+import glob
+import datetime
 from colorama import init
 from termcolor import colored
 import threading
@@ -25,11 +26,12 @@ class BaseModel(Model):
 
 class Alarm(BaseModel):
     name = CharField()
-    play_type = CharField()
+    source = CharField()
     url = CharField()
-    alarm_time = CharField()
-    last_alarm_date = CharField()
-    repeatDays = CharField(default="1,2,3,4,5,6,7")
+    alarmTime = CharField()
+    created = DateTimeField(default=datetime.datetime.now)
+    lastAlarmDate = CharField(default="")
+    repeatDays = CharField()
     active = BooleanField(default=True)
     playing = BooleanField(default=False)
 
@@ -42,61 +44,42 @@ class MainMusicAlarm:
     def __init__(self):
         self.Config.read(self.ConfigFileName)
         print(colored('Initializing the music Alarm checker at {}.'.format(
-            datetime.now().strftime("%H:%M")), 'green'))
+            datetime.datetime.now().strftime("%H:%M")), 'green'))
         self.initDB()
 
     def parseTime(self, time):
         h, m, s = map(int, time.split(':'))
-        return datetime.now().replace(hour=h, minute=m, second=s, microsecond=0)
+        return datetime.datetime.now().replace(hour=h, minute=m, second=s, microsecond=0)
 
     def playFile(self, alarm, state):
         if state:
             self.PlayingTitle = vlc.MediaPlayer(alarm.url)
             self.PlayingTitle.play()
-            alarm.last_alarm_date = datetime.now().strftime("%d.%m.%Y")
+            alarm.lastAlarmDate = datetime.datetime.now().strftime("%d.%m.%Y")
             alarm.playing = True
         else:
             self.PlayingTitle.stop()
             alarm.playing = False
         alarm.save()
 
-    def getRandomMusicTitle(self):
-        musicDirectoryFileAmount = 0
-        selectedFile = ""
-        selectedFileIndex = 0
-        for root, dirs, files in os.walk(self.Config['ALARM']['MusicDirectory']):
-            musicDirectoryFileAmount += len(files)
-        selectedFileIndex = random.randint(0, musicDirectoryFileAmount - 1)
-        print(colored('Get random file from the {} directory.'.format(
-            self.Config['ALARM']['MusicDirectory']), 'green'))
-        i = 0
-        for root, dirs, files in os.walk(self.Config['ALARM']['MusicDirectory']):
-            for file_ in files:
-                if i == selectedFileIndex:
-                    selectedFile = os.path.join(root, file_)
-                i += 1
-        print("Selecting {} => {}) of the {} files".format(
-            selectedFile, selectedFileIndex, musicDirectoryFileAmount))
-        return selectedFile
-
     def checkAlarms(self):
-        # print(datetime.now().strftime("%H:%M"))
+        # print(datetime.datetime.now().strftime("%H:%M"))
         for alarm in Alarm.select():
             # check if the alarm is over the current time
-            if self.parseTime(alarm.alarm_time) < datetime.now():
+            if self.parseTime(alarm.alarmTime) < datetime.datetime.now() and self.parseTime(alarm.alarmTime) > alarm.created:
                 # check if the alarm is currently not playing
                 if alarm.playing == False and alarm.active == True:
                     # check if the alarm was not already played on this day
-                    if str(self.parseTime(alarm.alarm_time).weekday() + 1) in alarm.repeatDays.strip().split(','):
-                        if alarm.last_alarm_date != datetime.now().strftime("%d.%m.%Y"):
+                    if str(self.parseTime(alarm.alarmTime).weekday() + 1) in alarm.repeatDays.strip().split(','):
+                        if alarm.lastAlarmDate != datetime.datetime.now().strftime("%d.%m.%Y"):
                             print(colored('Triggering the alarm {} at {} for {}.'.format(
-                                alarm.name, datetime.now(), self.parseTime(alarm.alarm_time)), 'green'))
+                                alarm.name, datetime.datetime.now(), self.parseTime(alarm.alarmTime)), 'green'))
                             self.manageAlarmTargets(alarm)
         time.sleep(10)
         self.checkAlarms()
 
     def manageAlarmTargets(self, alarm):
-        if alarm.play_type == 'file':
+        if alarm.source == 'file':
             self.playFile(alarm, 1)
         os.system("sudo send433 10101 4 {}".format(1))
 
@@ -105,6 +88,9 @@ class MainMusicAlarm:
             alarm.playing = False
             alarm.save()
             os.system("sudo send433 10101 4 {}".format(0))
+
+    def getFiles(self):
+        pass
 
     def initDB(self):
         DB.connect()
@@ -121,6 +107,41 @@ def stopAlarm():
     return flask.jsonify({'success': True})
 
 
+@app.route('/api/v1/createAlarm', methods=['POST'])
+def createAlarm_page():
+    Alarm.create(name=flask.request.json['name'],
+                 source=flask.request.json['source'],
+                 url=flask.request.json['url'],
+                 alarmTime=flask.request.json['alarmTime'],
+                 repeatDays=flask.request.json['repeatDays'],
+                 active=flask.request.json['active'])
+    return flask.jsonify({'success': True})
+
+
+@app.route('/api/v1/deleteAlarm/<int:AlarmId>')
+def deleteAlarm_page(AlarmId):
+    return flask.jsonify(Alarm.get(Alarm.id == AlarmId).delete_instance())
+
+
+@app.route('/api/v1/modifyAlarm/<int:AlarmId>', methods=['POST'])
+def modifyAlarm_page(AlarmId):
+    entry = Alarm.get(Alarm.id == AlarmId)
+    entry.name = flask.request.json[
+        'name'] if 'name' in flask.request.json else entry.name
+    entry.source = flask.request.json[
+        'source'] if 'source' in flask.request.json else entry.name
+    entry.url = flask.request.json[
+        'url'] if 'url' in flask.request.json else entry.name
+    entry.alarmTime = flask.request.json[
+        'alarmTime'] if 'alarmTime' in flask.request.json else entry.name
+    entry.repeatDays = flask.request.json[
+        'repeatDays'] if 'repeatDays' in flask.request.json else entry.name
+    entry.active = flask.request.json[
+        'active'] if 'active' in flask.request.json else entry.name
+    entry.save()
+    return flask.jsonify({'success': True})
+
+
 @app.route('/api/v1/getAlarms')
 def getAlarms():
     return flask.jsonify(list(Alarm.select().dicts()))
@@ -129,6 +150,14 @@ def getAlarms():
 @app.route('/<path:path>')
 def default_serve(path):
     return flask.send_from_directory('static', path)
+
+
+@app.route('/api/v1/getFiles')
+def getFiles_page():
+    files = []
+    for filename in glob.iglob(M.Config['ALARM']['musicdirectory'], recursive=True):
+        files.append(filename)
+    return flask.jsonify(files)
 
 
 @app.route('/')
@@ -150,6 +179,6 @@ if (__name__ == "__main__"):
     app.run(host=M.Config['HTTP']['ListenAddr'], port=M.Config[
             'HTTP']['ListenPort'], threaded=True)
     print(colored('The programm was terminated at {}. Stopping services...'.format(
-        datetime.now()), 'red'))
+        datetime.datetime.now()), 'red'))
     M.manageAlarm(0)
     sys.exit(os.EX_OK)

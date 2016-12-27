@@ -10,6 +10,121 @@ $(document).ready(function () {
         }
 
     });
+    checkIfAlarmIsRunning();
+    setInterval(checkIfAlarmIsRunning, 10000);
+    $("#main-menu > a").each(function () {
+        if (this.text == currentPage) {
+            $(this).addClass("active");
+        }
+    });
+    // Handler for opening the createAlarm modal
+    $("#addAlarmBTN").click(function () {
+        $("#addAlarmModal").modal('show');
+        $('#createAlarmForm').form({
+            fields: {
+                time: {
+                    identifier: 'alarm-time',
+                    rules: [{
+                        type: 'regExp',
+                        value: /\d{2}:\d{2}:\d{2}/i,
+                    }]
+                },
+                name: {
+                    identifier: 'alarm-name',
+                    rules: [{
+                        type: 'empty',
+                        prompt: 'Please enter a alarm name.'
+                    }]
+                },
+                source: {
+                    identifier: 'alarm-source',
+                    rules: [{
+                        type: 'empty',
+                        prompt: 'Please select a source.'
+                    }]
+                },
+                url: {
+                    identifier: 'alarm-file',
+                    rules: [{
+                        type: 'empty',
+                        prompt: 'Please select a file.'
+                    }]
+                }
+            }
+        });
+        reloadFiles("file");
+    });
+    $("select[name=alarm-source]").change(function (e) {
+        reloadFiles("file");
+    });
+    // Handler for submitting the createAlarm Form
+    $("#createAlarmFormBTN").click(function (e) {
+        // Error Checking
+        if ($('#createAlarmForm').submit().hasClass("success")) {
+            $.ajax({
+                url: '/api/v1/createAlarm',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                data: JSON.stringify({
+                    active: $("input[name=alarm-isactive]").is(':checked'),
+                    alarmTime: $("input[name=alarm-time]").val(),
+                    name: $("input[name=alarm-name]").val(),
+                    source: $("select[name=alarm-source]").val(),
+                    repeatDays: $("select[name=alarm-repeatdays]").val().join(),
+                    url: atob($("select[name=alarm-file]").val().toString())
+                })
+            }).done(function (data) {
+                $("#addAlarmModal").modal('hide');
+                reloadAlarmTable();
+            });
+        }
+    });
+    $("#reloadTableBTN").click(function () {
+        reloadAlarmTable();
+    })
+});
+
+function editAlarm(alarmId) {
+    console.log("Editing " + alarmId);
+}
+
+function reloadAlarmTable() {
+    $.get('/api/v1/getAlarms', function (data) {
+        $("#alarmsTable > tbody").empty();
+        $.each(data, function () {
+            $("#alarmsTable > tbody:last-child").append('<tr><td>' + this.name + '</td><td>' + this.source + '</td><td>' + this.url + '</td><td>' + this.alarmTime + '</td><td>' + this.repeatDays + '</td><td>' + this.active + '</td><td class="selectable"><a onclick="deleteAlarm(this, ' + this.id + ')">Delete <i class="trash icon"></i></a></td><td class="selectable"><a onclick="editAlarm(this, ' + this.id + ')">Edit <i class="edit icon"></i></a></td></tr>');
+        });
+    });
+}
+
+function deleteAlarm(e, alarmId) {
+    $.get('/api/v1/deleteAlarm/' + alarmId, function (data) {
+        $(e).closest('tr').remove();
+    });
+}
+
+function reloadFiles(type) {
+    $('select[name=alarm-file]').children('option:not(:first)').remove();
+    switch (type) {
+        case "file":
+            $.getJSON('/api/v1/getFiles', function (data) {
+                for (var i = 0; i < data.length; i++)
+                    $('select[name=alarm-file]').append($('<option>', {
+                        value: btoa(data[i]),
+                        text: data[i].replace(/^.*[\\\/]/, '')
+                    }));
+
+            });
+            break;
+
+        default:
+            break;
+    }
+}
+
+function checkIfAlarmIsRunning() {
     // Handler for getting the current alarm status (of all)
     $.get("/api/v1/getAlarms", function (data) {
         $("#alarm-status > a").text(everyThingIsfineText);
@@ -21,28 +136,4 @@ $(document).ready(function () {
             }
         });
     });
-    $("#main-menu > a").each(function () {
-        if (this.text == currentPage) {
-            $(this).addClass("active");
-        }
-    });
-    $("#addAlarmBTN").click(function () {
-        $("#addAlarmModal").modal('show');
-        $('#createAlarmForm').form({
-            fields: {
-                color: {
-                    identifier: 'alarm-time',
-                    rules: [{
-                        type: 'regExp',
-                        value: /\d{2}:\d{2}:\d{2}/i,
-                    }]
-                }
-            }
-        });
-
-    });
-});
-
-function editAlarm(alarmId) {
-    console.log(alarmId);
 }
