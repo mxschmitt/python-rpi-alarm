@@ -12,9 +12,9 @@ import time
 import vlc
 import flask
 import configparser
+import gtts
 from peewee import *
 from playhouse.sqlite_ext import SqliteExtDatabase
-
 DB = SqliteExtDatabase('main.sqlite')
 
 
@@ -38,7 +38,8 @@ class Alarm(BaseModel):
 
 class MainMusicAlarm:
     Config = configparser.ConfigParser()
-    PlayingTitle = vlc.MediaPlayer()
+    VLCInstance = vlc.Instance()
+    VLCPlayer = VLCInstance.media_player_new()
     ConfigFileName = 'config.ini'
 
     def __init__(self):
@@ -46,31 +47,47 @@ class MainMusicAlarm:
         print(colored('Initializing the music Alarm checker at {}.'.format(
             datetime.datetime.now().strftime("%H:%M")), 'green'))
         self.initDB()
+        events = self.VLCPlayer.event_manager()
+        events.event_attach(
+            vlc.EventType.MediaPlayerEndReached, self.SongFinished)
+
+    def SongFinished(event):
+        global finish
+        print("Event reports - finished")
+        finish = 1
 
     def parseTime(self, time):
         h, m, s = map(int, time.split(':'))
         return datetime.datetime.now().replace(hour=h, minute=m, second=s, microsecond=0)
 
-    def playFile(self, alarm, state):
-        if state:
-            self.PlayingTitle = vlc.MediaPlayer(alarm.url)
-            self.PlayingTitle.play()
-            alarm.lastAlarmDate = datetime.datetime.now().strftime("%d.%m.%Y")
-            alarm.playing = True
-        else:
-            self.PlayingTitle.stop()
-            alarm.playing = False
+    def playFile(self, alarm):
+        self.VLCPlayer.set_media(self.VLCInstance.media_new(alarm.url))
+        self.VLCPlayer.play()
+        alarm.lastAlarmDate = datetime.datetime.now().strftime("%d.%m.%Y")
+        alarm.playing = True
+        alarm.save()
+
+    def playTTS(self, alarm):
+        tts = gtts.gTTS(text=alarm.url, lang='de')
+        tts.save("temp.mp3")
+        self.VLCPlayer.set_media(self.VLCInstance.media_new("temp.mp3"))
+        self.VLCPlayer.play()
+        alarm.lastAlarmDate = datetime.datetime.now().strftime("%d.%m.%Y")
+        alarm.playing = True
         alarm.save()
 
     def checkAlarms(self):
         # print(datetime.datetime.now().strftime("%H:%M"))
         for alarm in Alarm.select():
-            # check if the alarm is over the current time
+            # check if the alarm is over the current time and
+            # if the alarmTime is after the createdTime
             if self.parseTime(alarm.alarmTime) < datetime.datetime.now() and self.parseTime(alarm.alarmTime) > alarm.created:
                 # check if the alarm is currently not playing
                 if alarm.playing == False and alarm.active == True:
-                    # check if the alarm was not already played on this day
-                    if str(self.parseTime(alarm.alarmTime).weekday() + 1) in alarm.repeatDays.strip().split(','):
+                    # check if the current weekday is in the alarm ones and
+                    # check if the alarm is a single one (without repeating)
+                    if str(self.parseTime(alarm.alarmTime).weekday() + 1) in alarm.repeatDays.strip().split(',') or (alarm.lastAlarmDate == "" and alarm.repeatDays == '0'):
+                        # check if the alarm was not already played on this day
                         if alarm.lastAlarmDate != datetime.datetime.now().strftime("%d.%m.%Y"):
                             print(colored('Triggering the alarm {} at {} for {}.'.format(
                                 alarm.name, datetime.datetime.now(), self.parseTime(alarm.alarmTime)), 'green'))
@@ -79,15 +96,18 @@ class MainMusicAlarm:
         self.checkAlarms()
 
     def manageAlarmTargets(self, alarm):
-        if alarm.source == 'file':
-            self.playFile(alarm, 1)
         os.system("sudo send433 10101 4 {}".format(1))
+        if alarm.source == 'file':
+            self.playFile(alarm)
+        elif alarm.source == 'tts':
+            self.playTTS(alarm)
 
     def stopAlarm(self):
         for alarm in Alarm.select().where(Alarm.playing == 1):
             alarm.playing = False
             alarm.save()
-            os.system("sudo send433 10101 4 {}".format(0))
+        os.system("sudo send433 10101 4 {}".format(0))
+        self.VLCPlayer.stop()
 
     def getFiles(self):
         pass
@@ -129,15 +149,15 @@ def modifyAlarm_page(AlarmId):
     entry.name = flask.request.json[
         'name'] if 'name' in flask.request.json else entry.name
     entry.source = flask.request.json[
-        'source'] if 'source' in flask.request.json else entry.name
+        'source'] if 'source' in flask.request.json else entry.source
     entry.url = flask.request.json[
-        'url'] if 'url' in flask.request.json else entry.name
+        'url'] if 'url' in flask.request.json else entry.url
     entry.alarmTime = flask.request.json[
-        'alarmTime'] if 'alarmTime' in flask.request.json else entry.name
+        'alarmTime'] if 'alarmTime' in flask.request.json else entry.alarmTime
     entry.repeatDays = flask.request.json[
-        'repeatDays'] if 'repeatDays' in flask.request.json else entry.name
+        'repeatDays'] if 'repeatDays' in flask.request.json else entry.repeatDays
     entry.active = flask.request.json[
-        'active'] if 'active' in flask.request.json else entry.name
+        'active'] if 'active' in flask.request.json else entry.active
     entry.save()
     return flask.jsonify({'success': True})
 
@@ -174,11 +194,15 @@ def alarms_page():
 def history_page():
     return flask.render_template('history.html', site="History")
 
+
+@app.route('/settings')
+def settings_page():
+    return flask.render_template('settings.html', site="Settings")
+
 if (__name__ == "__main__"):
     threading.Thread(target=M.checkAlarms).start()
     app.run(host=M.Config['HTTP']['ListenAddr'], port=M.Config[
             'HTTP']['ListenPort'], threaded=True)
     print(colored('The programm was terminated at {}. Stopping services...'.format(
         datetime.datetime.now()), 'red'))
-    M.manageAlarm(0)
     sys.exit(os.EX_OK)

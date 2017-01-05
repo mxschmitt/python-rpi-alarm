@@ -1,7 +1,19 @@
 {% extends "main.html" %} {% block body %}
 <div class="ui grid stackable" style="margin-bottom: 20px;">
 <div class="eight wide column">
-    <h1>Index!</h1>
+    <h1>Volume Control!</h1>
+    <div class="ui range" id="volume-range"></div>
 </div>
-
-</div>{% endblock %}
+</div>{% endblock %} {% block bottom_scripts %}
+<script src="/assets/js/range.js"></script>
+<script>
+    $(document).ready(function () {
+        $('#volume-range').range({
+            min: 0,
+            max: 10,
+            start: 5
+        });
+    });
+</script>
+{% endblock %} {% block top_stylesheets %}
+<link rel="stylesheet" type="text/css" href="/assets/css/range.css"> {% endblock %}

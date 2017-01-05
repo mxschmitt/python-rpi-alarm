@@ -4,6 +4,7 @@ $(document).ready(function () {
     $("#alarm-status > a").click(function (e) {
         if (e.target.text != everyThingIsfineText) {
             $.get("/api/v1/stopAlarms", function (data) {
+                $("#alarm-status > a").removeClass("red");
                 $("#alarm-status > a").addClass("ui green label");
                 $("#alarm-status > a").text("Success! All alarms are stopped...");
             });
@@ -19,48 +20,26 @@ $(document).ready(function () {
     });
     // Handler for opening the createAlarm modal
     $("#addAlarmBTN").click(function () {
-        $("#addAlarmModal").modal('show');
-        $('#createAlarmForm').form({
-            fields: {
-                time: {
-                    identifier: 'alarm-time',
-                    rules: [{
-                        type: 'regExp',
-                        value: /\d{2}:\d{2}:\d{2}/i,
-                    }]
-                },
-                name: {
-                    identifier: 'alarm-name',
-                    rules: [{
-                        type: 'empty',
-                        prompt: 'Please enter a alarm name.'
-                    }]
-                },
-                source: {
-                    identifier: 'alarm-source',
-                    rules: [{
-                        type: 'empty',
-                        prompt: 'Please select a source.'
-                    }]
-                },
-                url: {
-                    identifier: 'alarm-file',
-                    rules: [{
-                        type: 'empty',
-                        prompt: 'Please select a file.'
-                    }]
-                }
-            }
-        });
-        reloadFiles("file");
+        openAlarmModal();
     });
     $("select[name=alarm-source]").change(function (e) {
-        reloadFiles("file");
+        reloadFiles(e.currentTarget.value);
     });
     // Handler for submitting the createAlarm Form
     $("#createAlarmFormBTN").click(function (e) {
         // Error Checking
         if ($('#createAlarmForm').submit().hasClass("success")) {
+            var source;
+            switch ($("select[name=alarm-source]").val()) {
+                case "tts":
+                    source = $("input[name=alarm-url]").val();
+                    break;
+                case "file":
+                    source = atob($("select[name=alarm-file]").val().toString());
+                    break;
+                default:
+                    break;
+            }
             $.ajax({
                 url: '/api/v1/createAlarm',
                 method: 'POST',
@@ -73,7 +52,7 @@ $(document).ready(function () {
                     name: $("input[name=alarm-name]").val(),
                     source: $("select[name=alarm-source]").val(),
                     repeatDays: $("select[name=alarm-repeatdays]").val().join(),
-                    url: atob($("select[name=alarm-file]").val().toString())
+                    url: source
                 })
             }).done(function (data) {
                 $("#addAlarmModal").modal('hide');
@@ -86,7 +65,40 @@ $(document).ready(function () {
     })
 });
 
-function editAlarm(alarmId) {
+function openAlarmModal() {
+    $("#addAlarmModal").modal('show');
+    $('#createAlarmForm').form({
+        fields: {
+            time: {
+                identifier: 'alarm-time',
+                rules: [{
+                    type: 'regExp',
+                    value: /\d{2}:\d{2}:\d{2}/i,
+                }, {
+                    type: 'exactLength[8]',
+                    prompt: 'The alarm time must be exactly 8 characters long.'
+                }]
+            },
+            name: {
+                identifier: 'alarm-name',
+                rules: [{
+                    type: 'empty',
+                    prompt: 'Please enter a alarm name.'
+                }]
+            },
+            source: {
+                identifier: 'alarm-source',
+                rules: [{
+                    type: 'empty',
+                    prompt: 'Please select a source.'
+                }]
+            }
+        }
+    });
+    reloadFiles($("select[name=alarm-source]").val() ? $("select[name=alarm-source]").val() : "file");
+}
+
+function editAlarm(e, alarmId) {
     console.log("Editing " + alarmId);
 }
 
@@ -107,18 +119,25 @@ function deleteAlarm(e, alarmId) {
 
 function reloadFiles(type) {
     $('select[name=alarm-file]').children('option:not(:first)').remove();
+    $("#alarm-file-field").hide();
+    $("#alarm-url-field").hide();
     switch (type) {
         case "file":
             $.getJSON('/api/v1/getFiles', function (data) {
-                for (var i = 0; i < data.length; i++)
+                for (var i = 0; i < data.length; i++) {
                     $('select[name=alarm-file]').append($('<option>', {
                         value: btoa(data[i]),
                         text: data[i].replace(/^.*[\\\/]/, '')
                     }));
-
+                }
+                $('select[name=alarm-file] option').eq(1).prop('selected', true);
             });
+            $("#alarm-file-field").show();
             break;
+        case "tts":
 
+            $("#alarm-url-field").show();
+            break;
         default:
             break;
     }
@@ -131,6 +150,7 @@ function checkIfAlarmIsRunning() {
         $.each(data, function () {
             if (this.playing) {
                 $("#alarm-status > a").text("Switch off alarms...");
+                $("#alarm-status > a").removeClass("green");
                 $("#alarm-status > a").addClass("ui red label");
                 return true
             }

@@ -60,23 +60,28 @@
 </div>
 <div class="field">
     <label>Source</label>
-    <select class="ui dropdown" name="alarm-source">
+    <select class="ui dropdown" name="alarm-source" id="alarm-source">
   <option value="">Source</option>
   <option value="file">file</option>
+    <option value="tts">Speaking</option>
   <option value="spotify" disabled>Spotify</option>
   <option value="youtube-dl" disabled>Youtube-DL</option>
 </select> </div>
 
-<div class="field">
+<div class="field" id="alarm-file-field">
     <label>File</label>
-    <select class="ui dropdown" name="alarm-file">
+    <select class="ui dropdown" name="alarm-file" id="alarm-file">
   <option value="">Select the file</option>
 </select> </div>
-
+<div class="field" id="alarm-url-field">
+    <label>File URL</label>
+    <input type="text" name="alarm-url" placeholder="Alarm URL" required>
+</div>
 <div class="field">
     <label>Repeating</label>
-    <select name="alarm-repeatdays" multiple="" class="ui fluid dropdown">
+    <select name="alarm-repeatdays" multiple="" class="ui fluid dropdown" id="alarm-repeatDays">
         <option value="">Select the weekdays</option>
+    <option value="0">No repating</option>
 <option value="1">Monday</option>
 <option value="2">Tuesday</option>
 <option value="3">Wednesday</option>
