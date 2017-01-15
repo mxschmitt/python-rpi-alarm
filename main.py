@@ -77,11 +77,11 @@ class MainMusicAlarm:
         alarm.save()
 
     def checkAlarms(self):
-        # print(datetime.datetime.now().strftime("%H:%M"))
+        print(colored('Initing checking the alarms!', 'yellow'))
         for alarm in Alarm.select():
             # check if the alarm is over the current time and
             # if the alarmTime is after the createdTime
-            if self.parseTime(alarm.alarmTime) < datetime.datetime.now() and self.parseTime(alarm.alarmTime) > alarm.created:
+            if self.parseTime(alarm.alarmTime) > datetime.datetime.now() and self.parseTime(alarm.alarmTime) > alarm.created:
                 # check if the alarm is currently not playing
                 if alarm.playing == False and alarm.active == True:
                     # check if the current weekday is in the alarm ones and
