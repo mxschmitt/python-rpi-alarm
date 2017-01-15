@@ -37,6 +37,9 @@ $(document).ready(function () {
                 case "file":
                     source = atob($("select[name=alarm-file]").val().toString());
                     break;
+                case "stream":
+                    source = $("input[name=alarm-url]").val();
+                    break
                 default:
                     break;
             }
@@ -121,6 +124,14 @@ function reloadFiles(type) {
     $('select[name=alarm-file]').children('option:not(:first)').remove();
     $("#alarm-file-field").hide();
     $("#alarm-url-field").hide();
+    if ($("#alarm-file-field").val() != "") {
+        $("#alarm-file > option").each(function (item) {
+            if ($(this).val() == $("#alarm-file").val()) {
+                console.log($(this).text());
+                return true
+            }
+        });
+    }
     switch (type) {
         case "file":
             $.getJSON('/api/v1/getFiles', function (data) {
@@ -134,13 +145,22 @@ function reloadFiles(type) {
             });
             $("#alarm-file-field").show();
             break;
-        case "tts":
-
-            $("#alarm-url-field").show();
+        case "stream":
+            UseFileURLField("URL for the HTTP audio stream")
             break;
+        case "tts":
+            UseFileURLField("Text for the TTS (Text to speech)")
+            break;
+
         default:
             break;
     }
+}
+
+function UseFileURLField(text) {
+    $("input[name=alarm-url]").attr("placeholder", text);
+    $("#alarm-url-field > label").text(text);
+    $("#alarm-url-field").show();
 }
 
 function checkIfAlarmIsRunning() {

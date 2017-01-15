@@ -9,31 +9,34 @@ from colorama import init
 from termcolor import colored
 import threading
 import time
+import subprocess
 import vlc
 import flask
 import configparser
 import gtts
-from peewee import *
+import calendar
+import peewee
 from playhouse.sqlite_ext import SqliteExtDatabase
 DB = SqliteExtDatabase('main.sqlite')
 
 
-class BaseModel(Model):
+class BaseModel(peewee.Model):
 
     class Meta:
         database = DB
 
 
 class Alarm(BaseModel):
-    name = CharField()
-    source = CharField()
-    url = CharField()
-    alarmTime = CharField()
-    created = DateTimeField(default=datetime.datetime.now)
-    lastAlarmDate = CharField(default="")
-    repeatDays = CharField()
-    active = BooleanField(default=True)
-    playing = BooleanField(default=False)
+    name = peewee.CharField()
+    source = peewee.CharField()
+    url = peewee.CharField()
+    alarmTime = peewee.TimeField()
+    created = peewee.DateTimeField(default=datetime.datetime.now)
+    lastAlarm = peewee.DateTimeField(
+        default=datetime.datetime.utcfromtimestamp(0))
+    repeatDays = peewee.CharField()
+    active = peewee.BooleanField(default=True)
+    playing = peewee.BooleanField(default=False)
 
 
 class MainMusicAlarm:
@@ -55,52 +58,55 @@ class MainMusicAlarm:
         global finish
         print("Event reports - finished")
         finish = 1
-
-    def parseTime(self, time):
-        h, m, s = map(int, time.split(':'))
-        return datetime.datetime.now().replace(hour=h, minute=m, second=s, microsecond=0)
+        self.stopAlarm()
 
     def playFile(self, alarm):
         self.VLCPlayer.set_media(self.VLCInstance.media_new(alarm.url))
         self.VLCPlayer.play()
-        alarm.lastAlarmDate = datetime.datetime.now().strftime("%d.%m.%Y")
-        alarm.playing = True
-        alarm.save()
 
     def playTTS(self, alarm):
         tts = gtts.gTTS(text=alarm.url, lang='de')
         tts.save("temp.mp3")
         self.VLCPlayer.set_media(self.VLCInstance.media_new("temp.mp3"))
         self.VLCPlayer.play()
-        alarm.lastAlarmDate = datetime.datetime.now().strftime("%d.%m.%Y")
-        alarm.playing = True
-        alarm.save()
 
     def checkAlarms(self):
         print(colored('Initing checking the alarms!', 'yellow'))
         for alarm in Alarm.select():
-            # check if the alarm is over the current time and
-            # if the alarmTime is after the createdTime
-            if self.parseTime(alarm.alarmTime) > datetime.datetime.now() and self.parseTime(alarm.alarmTime) > alarm.created:
-                # check if the alarm is currently not playing
-                if alarm.playing == False and alarm.active == True:
-                    # check if the current weekday is in the alarm ones and
-                    # check if the alarm is a single one (without repeating)
-                    if str(self.parseTime(alarm.alarmTime).weekday() + 1) in alarm.repeatDays.strip().split(',') or (alarm.lastAlarmDate == "" and alarm.repeatDays == '0'):
-                        # check if the alarm was not already played on this day
-                        if alarm.lastAlarmDate != datetime.datetime.now().strftime("%d.%m.%Y"):
-                            print(colored('Triggering the alarm {} at {} for {}.'.format(
-                                alarm.name, datetime.datetime.now(), self.parseTime(alarm.alarmTime)), 'green'))
+            # check if the current weekday is in the alarm ones and
+            # check if the alarm is a single one (without repeating)
+            print(colored('1 - Passing the weekday condition?. Today is {} and the alarm will trigger => {}'.format(
+                str(datetime.datetime.now().weekday() + 1), alarm.repeatDays.strip().split(',')), 'green'))
+            if str(datetime.datetime.now().weekday() + 1) in alarm.repeatDays.strip().split(',') or (alarm.lastAlarm == datetime.datetime.utcfromtimestamp(0) and alarm.repeatDays == '0'):
+                # check if the alarm is over the current time and
+                # if the alarmTime is after the createdTime
+                print(colored('2 - Passing the alarm time condition?. Today is {} and the alarm will trigger => {} (Created: {})'.format(
+                    datetime.datetime.now().time(), alarm.alarmTime, alarm.created.time()), 'green'))
+                if alarm.alarmTime < datetime.datetime.now().time() and alarm.alarmTime > alarm.created.time():
+                    # check if the alarm is currently not playing
+                    print(colored('3 - Passing the playing / active condition?.The alarm is active => {} and is playing => {}'.format(
+                        alarm.active, alarm.playing), 'green'))
+                    if alarm.playing == False and alarm.active == True:
+                        # adds to the lastAlarm one day and sets the time to the normal alarm time
+                        # this variable should be bigger as the
+                        # datetime.datetime.now()
+                        if ((alarm.lastAlarm.replace(
+                                hour=alarm.alarmTime.hour, minute=alarm.alarmTime.minute, second=alarm.alarmTime.second, microsecond=0) + datetime.timedelta(days=1) < datetime.datetime.now()) or (alarm.lastAlarm == datetime.datetime.utcfromtimestamp(0))):
+                            print(colored('4 - Triggering the alarm {} at {} for {}.'.format(
+                                alarm.name, datetime.datetime.now(), alarm.alarmTime), 'green'))
                             self.manageAlarmTargets(alarm)
         time.sleep(10)
         self.checkAlarms()
 
     def manageAlarmTargets(self, alarm):
         os.system("sudo send433 10101 4 {}".format(1))
-        if alarm.source == 'file':
+        if alarm.source == 'file' or alarm.source == 'stream':
             self.playFile(alarm)
         elif alarm.source == 'tts':
             self.playTTS(alarm)
+        alarm.lastAlarm = datetime.datetime.now()
+        alarm.playing = True
+        alarm.save()
 
     def stopAlarm(self):
         for alarm in Alarm.select().where(Alarm.playing == 1):
@@ -117,7 +123,29 @@ class MainMusicAlarm:
         Alarm.create_table(True)
 
 
+class CustomJSONEncoder(flask.json.JSONEncoder):
+
+    def default(self, obj):
+        try:
+            if isinstance(obj, datetime.datetime):
+                if obj.utcoffset() is not None:
+                    obj = obj - obj.utcoffset()
+                millis = int(
+                    calendar.timegm(obj.timetuple()) * 1000 +
+                    obj.microsecond / 1000
+                )
+                return millis
+            if isinstance(obj, datetime.time):
+                return obj.isoformat()
+            iterable = iter(obj)
+        except TypeError:
+            pass
+        else:
+            return list(iterable)
+        return flask.json.JSONEncoder.default(self, obj)
+
 app = flask.Flask(__name__)
+app.json_encoder = CustomJSONEncoder
 M = MainMusicAlarm()
 
 
@@ -132,7 +160,8 @@ def createAlarm_page():
     Alarm.create(name=flask.request.json['name'],
                  source=flask.request.json['source'],
                  url=flask.request.json['url'],
-                 alarmTime=flask.request.json['alarmTime'],
+                 alarmTime=datetime.datetime.strptime(
+                     flask.request.json['alarmTime'], '%H:%M:%S').time(),
                  repeatDays=flask.request.json['repeatDays'],
                  active=flask.request.json['active'])
     return flask.jsonify({'success': True})
@@ -141,6 +170,27 @@ def createAlarm_page():
 @app.route('/api/v1/deleteAlarm/<int:AlarmId>')
 def deleteAlarm_page(AlarmId):
     return flask.jsonify(Alarm.get(Alarm.id == AlarmId).delete_instance())
+
+
+@app.route('/api/v1/test/<int:TestId>')
+def do_testing_page(TestId):
+    if TestId == 1:
+        M.VLCPlayer.set_media(M.VLCInstance.media_new(
+            "http://listen.hardbase.fm/tunein-aacplus-pls"))
+        M.VLCPlayer.play()
+    if TestId == 2:
+        M.VLCPlayer.stop()
+    return flask.jsonify({'success': True})
+
+
+@app.route('/api/v1/volume/<int:Amount>')
+def get_volume_page(Amount):
+    return flask.jsonify({'data': subprocess.check_output("amixer set Speaker " + str(Amount) + "% | grep % | awk '{print $5}'|sed 's/[^0-9\%]//g' | head -n 1", shell=True).decode("utf-8").rstrip('\n'), 'success': True})
+
+
+@app.route('/api/v1/volume')
+def set_volume_page():
+    return flask.jsonify({'data': subprocess.check_output("amixer get Speaker | grep % | awk '{print $5}'|sed 's/[^0-9\%]//g' | head -n 1", shell=True).decode("utf-8").rstrip('\n'), 'success': True})
 
 
 @app.route('/api/v1/modifyAlarm/<int:AlarmId>', methods=['POST'])
@@ -201,8 +251,8 @@ def settings_page():
 
 if (__name__ == "__main__"):
     threading.Thread(target=M.checkAlarms).start()
-    app.run(host=M.Config['HTTP']['ListenAddr'], port=M.Config[
-            'HTTP']['ListenPort'], threaded=True)
+    app.run(host=M.Config['HTTP']['ListenAddr'], port=int(M.Config[
+        'HTTP']['ListenPort']), threaded=True, debug=True)
     print(colored('The programm was terminated at {}. Stopping services...'.format(
         datetime.datetime.now()), 'red'))
     sys.exit(os.EX_OK)
