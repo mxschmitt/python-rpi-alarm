@@ -1,0 +1,14 @@
+[32mInitializing the music Alarm checker at 21:37.[0m
+[33mIniting checking the alarms![0m
+[32m1 - Passing the weekday condition?. Today is 1 and the alarm will trigger => ['1', '2', '3', '4', '5'][0m
+[32m2 - Passing the alarm time condition?. Today is 21:37:14.510715 and the alarm will trigger => 06:06:00[0m
+[32m3 - Passing the playing / active condition?.The alarm is active => True and is playing => False[0m
+using pin 0
+sending systemCode[10101] unitCode[4] command[1]
+[33mIniting checking the alarms![0m
+[32m1 - Passing the weekday condition?. Today is 1 and the alarm will trigger => ['1', '2', '3', '4', '5'][0m
+[32m2 - Passing the alarm time condition?. Today is 21:37:24.538089 and the alarm will trigger => 06:06:00[0m
+[32m3 - Passing the playing / active condition?.The alarm is active => True and is playing => False[0m
+[31mThe programm was terminated at 2017-01-16 21:37:25.072443. Stopping services...[0m
+using pin 0
+sending systemCode[10101] unitCode[4] command[0]

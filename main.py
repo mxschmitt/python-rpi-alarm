@@ -78,11 +78,10 @@ class MainMusicAlarm:
             print(colored('1 - Passing the weekday condition?. Today is {} and the alarm will trigger => {}'.format(
                 str(datetime.datetime.now().weekday() + 1), alarm.repeatDays.strip().split(',')), 'green'))
             if str(datetime.datetime.now().weekday() + 1) in alarm.repeatDays.strip().split(',') or (alarm.lastAlarm == datetime.datetime.utcfromtimestamp(0) and alarm.repeatDays == '0'):
-                # check if the alarm is over the current time and
-                # if the alarmTime is after the createdTime
-                print(colored('2 - Passing the alarm time condition?. Today is {} and the alarm will trigger => {} (Created: {})'.format(
-                    datetime.datetime.now().time(), alarm.alarmTime, alarm.created.time()), 'green'))
-                if alarm.alarmTime < datetime.datetime.now().time() and alarm.alarmTime > alarm.created.time():
+                # check if the alarm is over the current time
+                print(colored('2 - Passing the alarm time condition?. Today is {} and the alarm will trigger => {}'.format(
+                    datetime.datetime.now().time(), alarm.alarmTime), 'green'))
+                if alarm.alarmTime < datetime.datetime.now().time():
                     # check if the alarm is currently not playing
                     print(colored('3 - Passing the playing / active condition?.The alarm is active => {} and is playing => {}'.format(
                         alarm.active, alarm.playing), 'green'))
@@ -178,7 +177,9 @@ def do_testing_page(TestId):
         M.VLCPlayer.set_media(M.VLCInstance.media_new(
             "http://listen.hardbase.fm/tunein-aacplus-pls"))
         M.VLCPlayer.play()
+        os.system("sudo send433 10101 4 {}".format(1))
     if TestId == 2:
+        os.system("sudo send433 10101 4 {}".format(0))
         M.VLCPlayer.stop()
     return flask.jsonify({'success': True})
 
@@ -255,4 +256,5 @@ if (__name__ == "__main__"):
         'HTTP']['ListenPort']), threaded=True, debug=True)
     print(colored('The programm was terminated at {}. Stopping services...'.format(
         datetime.datetime.now()), 'red'))
+    os.system("sudo send433 10101 4 {}".format(0))
     sys.exit(os.EX_OK)
