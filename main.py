@@ -5,8 +5,7 @@ import random
 import base64
 import glob
 import datetime
-from colorama import init
-from termcolor import colored
+import termcolor
 import threading
 import time
 import subprocess
@@ -16,8 +15,9 @@ import configparser
 import gtts
 import calendar
 import peewee
-from playhouse.sqlite_ext import SqliteExtDatabase
-DB = SqliteExtDatabase('main.sqlite')
+import playhouse.sqlite_ext
+
+DB = playhouse.sqlite_ext.SqliteExtDatabase('main.sqlite')
 
 
 class BaseModel(peewee.Model):
@@ -47,7 +47,7 @@ class MainMusicAlarm:
 
     def __init__(self):
         self.Config.read(self.ConfigFileName)
-        print(colored('Initializing the music Alarm checker at {}.'.format(
+        print(termcolor.colored('Initializing the music Alarm checker at {}.'.format(
             datetime.datetime.now().strftime("%H:%M")), 'green'))
         self.initDB()
         events = self.VLCPlayer.event_manager()
@@ -71,19 +71,19 @@ class MainMusicAlarm:
         self.VLCPlayer.play()
 
     def checkAlarms(self):
-        print(colored('Initing checking the alarms!', 'yellow'))
+        print(termcolor.colored('Initing checking the alarms!', 'yellow'))
         for alarm in Alarm.select():
             # check if the current weekday is in the alarm ones and
             # check if the alarm is a single one (without repeating)
-            print(colored('1 - Passing the weekday condition?. Today is {} and the alarm will trigger => {}'.format(
+            print(termcolor.colored('1 - Passing the weekday condition?. Today is {} and the alarm will trigger => {}'.format(
                 str(datetime.datetime.now().weekday() + 1), alarm.repeatDays.strip().split(',')), 'green'))
             if str(datetime.datetime.now().weekday() + 1) in alarm.repeatDays.strip().split(',') or (alarm.lastAlarm == datetime.datetime.utcfromtimestamp(0) and alarm.repeatDays == '0'):
                 # check if the alarm is over the current time
-                print(colored('2 - Passing the alarm time condition?. Today is {} and the alarm will trigger => {}'.format(
+                print(termcolor.colored('2 - Passing the alarm time condition?. Today is {} and the alarm will trigger => {}'.format(
                     datetime.datetime.now().time(), alarm.alarmTime), 'green'))
                 if alarm.alarmTime < datetime.datetime.now().time():
                     # check if the alarm is currently not playing
-                    print(colored('3 - Passing the playing / active condition?.The alarm is active => {} and is playing => {}'.format(
+                    print(termcolor.colored('3 - Passing the playing / active condition?.The alarm is active => {} and is playing => {}'.format(
                         alarm.active, alarm.playing), 'green'))
                     if alarm.playing == False and alarm.active == True:
                         # adds to the lastAlarm one day and sets the time to the normal alarm time
@@ -91,7 +91,7 @@ class MainMusicAlarm:
                         # datetime.datetime.now()
                         if ((alarm.lastAlarm.replace(
                                 hour=alarm.alarmTime.hour, minute=alarm.alarmTime.minute, second=alarm.alarmTime.second, microsecond=0) + datetime.timedelta(days=1) < datetime.datetime.now()) or (alarm.lastAlarm == datetime.datetime.utcfromtimestamp(0))):
-                            print(colored('4 - Triggering the alarm {} at {} for {}.'.format(
+                            print(termcolor.colored('4 - Triggering the alarm {} at {} for {}.'.format(
                                 alarm.name, datetime.datetime.now(), alarm.alarmTime), 'green'))
                             self.manageAlarmTargets(alarm)
         time.sleep(10)
@@ -251,10 +251,14 @@ def settings_page():
     return flask.render_template('settings.html', site="Settings")
 
 if (__name__ == "__main__"):
-    threading.Thread(target=M.checkAlarms).start()
-    app.run(host=M.Config['HTTP']['ListenAddr'], port=int(M.Config[
-        'HTTP']['ListenPort']), threaded=True, debug=True)
-    print(colored('The programm was terminated at {}. Stopping services...'.format(
-        datetime.datetime.now()), 'red'))
-    os.system("sudo send433 10101 4 {}".format(0))
-    sys.exit(os.EX_OK)
+  	mainThread = threading.Thread(target=M.checkAlarms)
+    try:
+      	mainThread.start()
+    	app.run(host=M.Config['HTTP']['ListenAddr'], port=int(M.Config[
+        	'HTTP']['ListenPort']), threaded=True, debug=True)
+    except Exception, e:
+    	print(termcolor.colored('The programm was terminated at {} with the following error: {}. Stopping services...'.format(
+        	datetime.datetime.now(), str(e)), 'red'))
+    	mainThread.join()
+        os.system("sudo send433 10101 4 {}".format(0))
+    	sys.exit(os.EX_OK)
