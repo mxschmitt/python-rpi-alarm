@@ -8,6 +8,7 @@ import datetime
 import termcolor
 import threading
 import time
+import signal
 import subprocess
 import vlc
 import flask
@@ -71,8 +72,8 @@ class MainMusicAlarm:
         self.VLCPlayer.play()
 
     def checkAlarms(self):
-      	exit_flag = threading.Event()
-      	while not exit_flag.wait(timeout=10):
+        exit_flag = threading.Event()
+        while not exit_flag.wait(timeout=10):
             print(termcolor.colored('Initing checking the alarms!', 'yellow'))
             for alarm in Alarm.select():
                 # check if the current weekday is in the alarm ones and
@@ -96,7 +97,7 @@ class MainMusicAlarm:
                                 print(termcolor.colored('4 - Triggering the alarm {} at {} for {}.'.format(
                                     alarm.name, datetime.datetime.now(), alarm.alarmTime), 'green'))
                                 self.manageAlarmTargets(alarm)
-        	self.checkAlarms()
+            self.checkAlarms()
 
     def manageAlarmTargets(self, alarm):
         os.system("sudo send433 10101 4 {}".format(1))
@@ -251,15 +252,18 @@ def history_page():
 def settings_page():
     return flask.render_template('settings.html', site="Settings")
 
+
 if (__name__ == "__main__"):
-  	mainThread = threading.Thread(target=M.checkAlarms)
     try:
-      	mainThread.start()
-    	app.run(host=M.Config['HTTP']['ListenAddr'], port=int(M.Config[
-        	'HTTP']['ListenPort']), threaded=True, debug=True)
-    except Exception, e:
-    	print(termcolor.colored('The programm was terminated at {} with the following error: {}. Stopping services...'.format(
-        	datetime.datetime.now(), str(e)), 'red'))
-    	mainThread.join()
+        mainThread = threading.Thread(target=M.checkAlarms)
+        mainThread.daemon = True
+        mainThread.start()
+        app.run(host=M.Config['HTTP']['ListenAddr'], port=int(
+            M.Config['HTTP']['ListenPort']), threaded=True, debug=True)
+        raise Exception(
+            'Flask was interrupted so the programm will terminate!')
+    except Exception as e:
+        print(termcolor.colored('\nThe programm was terminated at {}.\nError: {}. \nStopping services...'.format(
+            datetime.datetime.now(), str(e)), 'red'))
         os.system("sudo send433 10101 4 {}".format(0))
-    	sys.exit(os.EX_OK)
+        sys.exit(os.EX_OK)
