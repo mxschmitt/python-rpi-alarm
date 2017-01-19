@@ -1,14 +1,11 @@
 #!/usr/bin/python3.6
 import os
 import sys
-import random
-import base64
 import glob
 import datetime
 import termcolor
 import threading
-import time
-import signal
+import logging
 import subprocess
 import vlc
 import flask
@@ -25,6 +22,13 @@ class BaseModel(peewee.Model):
 
     class Meta:
         database = DB
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s:%(levelname)s:%(name)s:%(message)s',
+    filename="main.log",
+    filemode='a'
+)
 
 
 class Alarm(BaseModel):
@@ -48,18 +52,18 @@ class MainMusicAlarm:
 
     def __init__(self):
         self.Config.read(self.ConfigFileName)
-        print(termcolor.colored('Initializing the music Alarm checker at {}.'.format(
+        logging.info(termcolor.colored('Initializing the music Alarm checker at {}.'.format(
             datetime.datetime.now().strftime("%H:%M")), 'green'))
         self.initDB()
-        events = self.VLCPlayer.event_manager()
-        events.event_attach(
-            vlc.EventType.MediaPlayerEndReached, self.SongFinished)
+        # events = self.VLCPlayer.event_manager()
+        # events.event_attach(
+        #     vlc.EventType.MediaPlayerEndReached, self.SongFinished)
 
-    def SongFinished(event):
-        global finish
-        print("Event reports - finished")
-        finish = 1
-        self.stopAlarm()
+    # def SongFinished(event):
+    #     global finish
+    #     logging.debug("Event reports - finished")
+    #     finish = 1
+    #     self.stopAlarm()
 
     def playFile(self, alarm):
         self.VLCPlayer.set_media(self.VLCInstance.media_new(alarm.url))
@@ -72,32 +76,33 @@ class MainMusicAlarm:
         self.VLCPlayer.play()
 
     def checkAlarms(self):
-        exit_flag = threading.Event()
-        while not exit_flag.wait(timeout=10):
-            print(termcolor.colored('Initing checking the alarms!', 'yellow'))
-            for alarm in Alarm.select():
-                # check if the current weekday is in the alarm ones and
-                # check if the alarm is a single one (without repeating)
-                print(termcolor.colored('1 - Passing the weekday condition?. Today is {} and the alarm will trigger => {}'.format(
-                    str(datetime.datetime.now().weekday() + 1), alarm.repeatDays.strip().split(',')), 'green'))
-                if str(datetime.datetime.now().weekday() + 1) in alarm.repeatDays.strip().split(',') or (alarm.lastAlarm == datetime.datetime.utcfromtimestamp(0) and alarm.repeatDays == '0'):
-                    # check if the alarm is over the current time
-                    print(termcolor.colored('2 - Passing the alarm time condition?. Today is {} and the alarm will trigger => {}'.format(
-                        datetime.datetime.now().time(), alarm.alarmTime), 'green'))
-                    if alarm.alarmTime < datetime.datetime.now().time():
-                        # check if the alarm is currently not playing
-                        print(termcolor.colored('3 - Passing the playing / active condition?.The alarm is active => {} and is playing => {}'.format(
-                            alarm.active, alarm.playing), 'green'))
-                        if alarm.playing == False and alarm.active == True:
-                            # adds to the lastAlarm one day and sets the time to the normal alarm time
-                            # this variable should be bigger as the
-                            # datetime.datetime.now()
-                            if ((alarm.lastAlarm.replace(
-                                    hour=alarm.alarmTime.hour, minute=alarm.alarmTime.minute, second=alarm.alarmTime.second, microsecond=0) + datetime.timedelta(days=1) < datetime.datetime.now()) or (alarm.lastAlarm == datetime.datetime.utcfromtimestamp(0))):
-                                print(termcolor.colored('4 - Triggering the alarm {} at {} for {}.'.format(
-                                    alarm.name, datetime.datetime.now(), alarm.alarmTime), 'green'))
-                                self.manageAlarmTargets(alarm)
-            self.checkAlarms()
+        logging.warning(termcolor.colored(
+            'SCHEDULER => Starting checking the alarms!', 'yellow'))
+        for alarm in Alarm.select():
+            # check if the current weekday is in the alarm ones and
+            # check if the alarm is a single one (without repeating)
+            logging.warning(termcolor.colored('1 - Passing the weekday condition?. Today is {} and the alarm will trigger => {}'.format(
+                str(datetime.datetime.now().weekday() + 1), alarm.repeatDays.strip().split(',')), 'green'))
+            if str(datetime.datetime.now().weekday() + 1) in alarm.repeatDays.strip().split(',') or (alarm.lastAlarm == datetime.datetime.utcfromtimestamp(0) and alarm.repeatDays == '0'):
+                # check if the alarm is over the current time
+                logging.warning(termcolor.colored('2 - Passing the alarm time condition?. Today is {} and the alarm will trigger => {}'.format(
+                    datetime.datetime.now().time(), alarm.alarmTime), 'green'))
+                if alarm.alarmTime < datetime.datetime.now().time():
+                    # check if the alarm is currently not playing
+                    logging.warning(termcolor.colored('3 - Passing the playing / active condition?. The alarm is active => {} and is playing => {}'.format(
+                        alarm.active, alarm.playing), 'green'))
+                    if alarm.playing == False and alarm.active == True:
+                        # adds to the lastAlarm one day and sets the time to the normal alarm time
+                        # this variable should be bigger as the
+                        # datetime.datetime.now()
+                        nextScheduledAlarm = alarm.lastAlarm.replace(
+                            hour=alarm.alarmTime.hour, minute=alarm.alarmTime.minute, second=alarm.alarmTime.second, microsecond=0) + datetime.timedelta(days=1)
+                        if ((nextScheduledAlarm < datetime.datetime.now()) or
+                                (alarm.lastAlarm == datetime.datetime.utcfromtimestamp(0)) and nextScheduledAlarm > alarm.created):
+                            logging.info(termcolor.colored('4 - Triggering the alarm {} at {} for {}.'.format(
+                                alarm.name, datetime.datetime.now(), alarm.alarmTime), 'green'))
+                            self.manageAlarmTargets(alarm)
+        threading.Timer(30.0, self.checkAlarms).start()
 
     def manageAlarmTargets(self, alarm):
         os.system("sudo send433 10101 4 {}".format(1))
@@ -115,9 +120,6 @@ class MainMusicAlarm:
             alarm.save()
         os.system("sudo send433 10101 4 {}".format(0))
         self.VLCPlayer.stop()
-
-    def getFiles(self):
-        pass
 
     def initDB(self):
         DB.connect()
@@ -253,17 +255,39 @@ def settings_page():
     return flask.render_template('settings.html', site="Settings")
 
 
+class StreamToLogger(object):
+    """
+    Fake file-like stream object that redirects writes to a logger instance.
+    """
+
+    def __init__(self, logger, log_level=logging.DEBUG):
+        self.logger = logger
+        self.log_level = log_level
+        self.linebuf = ''
+
+    def write(self, buf):
+        for line in buf.rstrip().splitlines():
+            self.logger.log(self.log_level, line.rstrip())
+
+    def flush(self):
+        pass
+
 if (__name__ == "__main__"):
     try:
+        sys.stdout = StreamToLogger(
+            logging.getLogger('STDOUT'), logging.INFO)
+        sys.stderr = StreamToLogger(
+            logging.getLogger('STDERR'), logging.ERROR)
+        sys.setrecursionlimit(100000)
         mainThread = threading.Thread(target=M.checkAlarms)
         mainThread.daemon = True
         mainThread.start()
         app.run(host=M.Config['HTTP']['ListenAddr'], port=int(
-            M.Config['HTTP']['ListenPort']), threaded=True, debug=True)
+            M.Config['HTTP']['ListenPort']), threaded=True, debug=False)
         raise Exception(
             'Flask was interrupted so the programm will terminate!')
     except Exception as e:
-        print(termcolor.colored('\nThe programm was terminated at {}.\nError: {}. \nStopping services...'.format(
+        logging.critical(termcolor.colored('\nThe programm was terminated at {}.\nError: {}. \nStopping services...'.format(
             datetime.datetime.now(), str(e)), 'red'))
         os.system("sudo send433 10101 4 {}".format(0))
         sys.exit(os.EX_OK)

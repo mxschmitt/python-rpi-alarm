@@ -62,6 +62,6 @@ docs/_build/
 # PyBuilder
 target/
 
-log.txt
+main.log
 main.sqlite
-.gitignore
+temp.mp3
