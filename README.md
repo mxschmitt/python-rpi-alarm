@@ -9,6 +9,11 @@ This repository contains an alarm clock which can be used to wake up by powering
 - Stylesheets using [Semantic UI](https://github.com/Semantic-Org/Semantic-UI)
 - For the alarms in the past [Chart.js](https://github.com/chartjs/Chart.js) is used to visualize them
 
+### Requirements:
+- 433 MHz Transmitter
+- Raspberry Pi
+- Coffee :coffee:
+
 ### How to install?
 
 1. Install [rcswitch-pi](https://github.com/r10r/rcswitch-pi) by following [this](https://github.com/mc-b/microHOME/wiki/Raspberrypi-433) tutorial. Just follow the installation instructions
