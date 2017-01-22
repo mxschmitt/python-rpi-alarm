@@ -230,8 +230,11 @@ def default_serve(path):
 @app.route('/api/v1/getFiles')
 def getFiles_page():
     files = []
-    for filename in glob.iglob(M.Config['ALARM']['musicdirectory'], recursive=True):
-        files.append(filename)
+    for filepath in glob.iglob(M.Config['ALARM']['musicdirectory'], recursive=True):
+        files.append({
+            'path': filepath,
+            'filename': os.path.basename(filepath)
+        })
     return flask.jsonify(files)
 
 

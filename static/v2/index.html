@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Alarm</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.7/semantic.min.css">
+    <link rel="stylesheet" type="text/css" href="assets/css/custom.css">
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.1.10/vue.min.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/vue-router/2.1.3/vue-router.min.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/vue-resource/1.0.3/vue-resource.min.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.slim.min.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.7/semantic.min.js"></script>
+</head>
+
+<body class="pushable">
+    <div class="pusher" id="app">
+        <div class="ui container">
+            <div class="ui menu stackable" id="main-menu">
+                <router-link :to="{ name: 'home' }" class="item header">Python Application Webinterface</router-link>
+                <router-link :to="{ name: 'alarms' }" class="item">Alarms</router-link>
+                <router-link :to="{ name: 'history' }" class="item">History</router-link>
+                <router-link :to="{ name: 'about' }" class="item">About</router-link>
+                <div class="right menu">
+                    <a class="item ui green label" v-if="alarmIsNotRunning">Everything is ok...</a>
+                    <a class="item ui red label" v-else v-on:click="stopAlarms">Disable alarm</a>
+                </div>
+            </div>
+        </div>
+        <div class="ui container" style="padding-bottom: 20px;">
+            <div class="ui grid stackable" style="margin-bottom: 20px;">
+                <router-view class="view"></router-view>
+            </div>
+            <div class="ui inverted vertical footer segment form-page custom-copyright grid noselect">
+                <div class="ui container left floated left aligned eight wide column">
+                    Max Schmitt 2016. Alle Rechte vorbehalten.
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="text/javascript" src="assets/js/app.js"></script>
+</body>
+
+</html>

@@ -1,9 +1,9 @@
-$(document).ready(function () {
+$(document).ready(function() {
     everyThingIsfineText = "Everything is fine...";
     // Click event handler for stopping the current alarm
-    $("#alarm-status > a").click(function (e) {
+    $("#alarm-status > a").click(function(e) {
         if (e.target.text != everyThingIsfineText) {
-            $.get("/api/v1/stopAlarms", function (data) {
+            $.get("/api/v1/stopAlarms", function(data) {
                 $("#alarm-status > a").removeClass("red");
                 $("#alarm-status > a").addClass("ui green label");
                 $("#alarm-status > a").text("Success! All alarms are stopped...");
@@ -13,20 +13,20 @@ $(document).ready(function () {
     });
     checkIfAlarmIsRunning();
     setInterval(checkIfAlarmIsRunning, 10000);
-    $("#main-menu > a").each(function () {
+    $("#main-menu > a").each(function() {
         if (this.text == currentPage) {
             $(this).addClass("active");
         }
     });
     // Handler for opening the createAlarm modal
-    $("#addAlarmBTN").click(function () {
+    $("#addAlarmBTN").click(function() {
         openAlarmModal();
     });
-    $("select[name=alarm-source]").change(function (e) {
+    $("select[name=alarm-source]").change(function(e) {
         reloadFiles(e.currentTarget.value);
     });
     // Handler for submitting the createAlarm Form
-    $("#createAlarmFormBTN").click(function (e) {
+    $("#createAlarmFormBTN").click(function(e) {
         // Error Checking
         if ($('#createAlarmForm').submit().hasClass("success")) {
             var source;
@@ -57,13 +57,13 @@ $(document).ready(function () {
                     repeatDays: $("select[name=alarm-repeatdays]").val().join(),
                     url: source
                 })
-            }).done(function (data) {
+            }).done(function(data) {
                 $("#addAlarmModal").modal('hide');
                 reloadAlarmTable();
             });
         }
     });
-    $("#reloadTableBTN").click(function () {
+    $("#reloadTableBTN").click(function() {
         reloadAlarmTable();
     })
 });
@@ -106,16 +106,16 @@ function editAlarm(e, alarmId) {
 }
 
 function reloadAlarmTable() {
-    $.get('/api/v1/getAlarms', function (data) {
+    $.get('/api/v1/getAlarms', function(data) {
         $("#alarmsTable > tbody").empty();
-        $.each(data, function () {
+        $.each(data, function() {
             $("#alarmsTable > tbody:last-child").append('<tr><td>' + this.name + '</td><td>' + this.source + '</td><td>' + this.url + '</td><td>' + this.alarmTime + '</td><td>' + this.repeatDays + '</td><td>' + this.active + '</td><td class="selectable"><a onclick="deleteAlarm(this, ' + this.id + ')">Delete <i class="trash icon"></i></a></td><td class="selectable"><a onclick="editAlarm(this, ' + this.id + ')">Edit <i class="edit icon"></i></a></td></tr>');
         });
     });
 }
 
 function deleteAlarm(e, alarmId) {
-    $.get('/api/v1/deleteAlarm/' + alarmId, function (data) {
+    $.get('/api/v1/deleteAlarm/' + alarmId, function(data) {
         $(e).closest('tr').remove();
     });
 }
@@ -125,7 +125,7 @@ function reloadFiles(type) {
     $("#alarm-file-field").hide();
     $("#alarm-url-field").hide();
     if ($("#alarm-file-field").val() != "") {
-        $("#alarm-file > option").each(function (item) {
+        $("#alarm-file > option").each(function(item) {
             if ($(this).val() == $("#alarm-file").val()) {
                 console.log($(this).text());
                 return true
@@ -134,11 +134,11 @@ function reloadFiles(type) {
     }
     switch (type) {
         case "file":
-            $.getJSON('/api/v1/getFiles', function (data) {
+            $.getJSON('/api/v1/getFiles', function(data) {
                 for (var i = 0; i < data.length; i++) {
                     $('select[name=alarm-file]').append($('<option>', {
-                        value: btoa(data[i]),
-                        text: data[i].replace(/^.*[\\\/]/, '')
+                        value: btoa(data[i].path),
+                        text: data[i].path.replace(/^.*[\\\/]/, '')
                     }));
                 }
                 $('select[name=alarm-file] option').eq(1).prop('selected', true);
@@ -165,9 +165,9 @@ function UseFileURLField(text) {
 
 function checkIfAlarmIsRunning() {
     // Handler for getting the current alarm status (of all)
-    $.get("/api/v1/getAlarms", function (data) {
+    $.get("/api/v1/getAlarms", function(data) {
         $("#alarm-status > a").text(everyThingIsfineText);
-        $.each(data, function () {
+        $.each(data, function() {
             if (this.playing) {
                 $("#alarm-status > a").text("Switch off alarms...");
                 $("#alarm-status > a").removeClass("green");

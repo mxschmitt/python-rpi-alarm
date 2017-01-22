@@ -16,17 +16,17 @@
     <div class="pusher" id="main-pusher">
         {% include "menu.html" %}
         <div class="ui container" style="padding-bottom: 20px;"> {% block body %}{% endblock %}
-</div>
-</div>
-{% include "footer.html" %}
-<script>
-    var currentPage = "{{ site }}";
-</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.7/semantic.min.js"></script>
-{% block top_scripts %}{% endblock %}
-<script src="assets/js/custom.js"></script>
-{% block bottom_scripts %}{% endblock %}
+        </div>
+    </div>
+    {% include "footer.html" %}
+    <script>
+        var currentPage = "{{ site }}";
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.7/semantic.min.js"></script>
+    {% block top_scripts %}{% endblock %}
+    <script src="assets/js/custom.js"></script>
+    {% block bottom_scripts %}{% endblock %}
 </body>
 
 </html>

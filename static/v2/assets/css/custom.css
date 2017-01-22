@@ -1,0 +1,39 @@
+#main-menu {
+    margin-top: 15px;
+    margin-bottom: 15px;
+}
+
+.noselect {
+    -webkit-touch-callout: none;
+    /* iOS Safari */
+    -webkit-user-select: none;
+    /* Chrome/Safari/Opera */
+    -khtml-user-select: none;
+    /* Konqueror */
+    -moz-user-select: none;
+    /* Firefox */
+    -ms-user-select: none;
+    /* Internet Explorer/Edge */
+    user-select: none;
+    /* Non-prefixed version, currently
+                                  not supported by any browser */
+}
+
+.disabled-completely,
+.disabled-completely:hover,
+.disabled-completely:active {
+    opacity: .45!important;
+    pointer-events: none;
+}
+
+#main-pusher {
+    padding-bottom: 70px;
+}
+
+.custom-copyright {
+    position: absolute !important;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin-bottom: 0px !important;
+}
