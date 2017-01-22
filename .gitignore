@@ -65,3 +65,5 @@ target/
 main.log
 main.sqlite
 temp.mp3
+__pycache__/*
+

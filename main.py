@@ -44,6 +44,12 @@ class Alarm(BaseModel):
     playing = peewee.BooleanField(default=False)
 
 
+class History(BaseModel):
+    triggerTime = peewee.TimeField()
+    stopTime = peewee.TimeField()
+    duration = peewee.IntegerField()
+
+
 class MainMusicAlarm:
     Config = configparser.ConfigParser()
     VLCInstance = vlc.Instance()
@@ -105,7 +111,7 @@ class MainMusicAlarm:
         threading.Timer(30.0, self.checkAlarms).start()
 
     def manageAlarmTargets(self, alarm):
-        os.system("sudo send433 10101 4 {}".format(1))
+        self.powerSocket(True)
         if alarm.source == 'file' or alarm.source == 'stream':
             self.playFile(alarm)
         elif alarm.source == 'tts':
@@ -118,12 +124,30 @@ class MainMusicAlarm:
         for alarm in Alarm.select().where(Alarm.playing == 1):
             alarm.playing = False
             alarm.save()
-        os.system("sudo send433 10101 4 {}".format(0))
+            if str(0) in alarm.repeatDays.strip().split(','):
+                alarm.delete_instance()
+            History.create(
+                triggerTime=alarm.alarmTime,
+                stopTime=datetime.datetime.now().time(),
+                duration=(datetime.datetime.now() - datetime.datetime.combine(
+                    datetime.date.today(), alarm.alarmTime)).total_seconds()
+            )
+        self.powerSocket(False)
         self.VLCPlayer.stop()
 
     def initDB(self):
         DB.connect()
         Alarm.create_table(True)
+        History.create_table(True)
+
+    def powerSocket(self, state):
+        socketState = 0
+        if (state == True):
+            socketState = 1
+        os.system("sudo send433 {code} {id} {state}".format(code=M.Config['SOCKETS']['code'],
+                                                            id=M.Config[
+                                                                'SOCKETS']['id'],
+                                                            state=socketState))
 
 
 class CustomJSONEncoder(flask.json.JSONEncoder):
@@ -181,9 +205,9 @@ def do_testing_page(TestId):
         M.VLCPlayer.set_media(M.VLCInstance.media_new(
             "http://listen.hardbase.fm/tunein-aacplus-pls"))
         M.VLCPlayer.play()
-        os.system("sudo send433 10101 4 {}".format(1))
+        M.powerSocket(True)
     if TestId == 2:
-        os.system("sudo send433 10101 4 {}".format(0))
+        M.powerSocket(False)
         M.VLCPlayer.stop()
     return flask.jsonify({'success': True})
 
@@ -222,6 +246,11 @@ def getAlarms():
     return flask.jsonify(list(Alarm.select().dicts()))
 
 
+@app.route('/api/v1/getHistory')
+def getHistory():
+    return flask.jsonify(list(History.select().dicts()))
+
+
 @app.route('/<path:path>')
 def default_serve(path):
     return flask.send_from_directory('static', path)
@@ -240,22 +269,7 @@ def getFiles_page():
 
 @app.route('/')
 def main_page():
-    return flask.render_template('index.html', site="Python Application Webinterface")
-
-
-@app.route('/alarms')
-def alarms_page():
-    return flask.render_template('alarms.html', site="Alarms", alarms=Alarm.select().dicts())
-
-
-@app.route('/history')
-def history_page():
-    return flask.render_template('history.html', site="History")
-
-
-@app.route('/settings')
-def settings_page():
-    return flask.render_template('settings.html', site="Settings")
+    return flask.send_from_directory('static', 'index.html')
 
 
 class StreamToLogger(object):
@@ -292,5 +306,5 @@ if (__name__ == "__main__"):
     except Exception as e:
         logging.critical(termcolor.colored('\nThe programm was terminated at {}.\nError: {}. \nStopping services...'.format(
             datetime.datetime.now(), str(e)), 'red'))
-        os.system("sudo send433 10101 4 {}".format(0))
+        M.powerSocket(False)
         sys.exit(os.EX_OK)

@@ -1,16 +1,24 @@
 const TPLNotFound = {
     template: `
-<div class="ui grid stackable centered" style="margin-bottom: 20px;">
+<div class="ui grid stackable" style="margin-bottom: 20px;">
     <div class="sixteen wide column">
         <h2>Sorry, but the requested URL is not available!</h2>
     </div>
-</div`
+</div>`
 }
 const TPLHome = {
     template: `
 <div class="ui grid stackable" style="margin-bottom: 20px;">
-    <div class="sixteen wide column">
+    <div class="eight wide column">
         <h2>Main page</h2>
+        <div class="ui range" id="volume-range"></div>
+    </div>
+    <div class="eight wide column" style="display: flex; justify-content: center; align-items: center;">
+        <div class="ui right labeled input">
+            <div class="ui label"><i class="volume up icon"></i></div>
+            <input type="text" placeholder="Volume" id="volumeText" disabled>
+            <div class="ui basic label">%</div>
+        </div>
     </div>
     <div class="eight wide column">
         <button class="ui button" style="width: 100%" v-on:click="onPlaybackStart">Testing the playback sound system.</button>
@@ -18,22 +26,38 @@ const TPLHome = {
     <div class="eight wide column">
         <button class="ui button" style="width: 100%" v-on:click="onPlaybackStop">Stop the playback sound system.</button>
     </div>
-</div`,
+</div>`,
     methods: {
         onPlaybackStart: function() {
-            Vue.http.get('/api/v1/test/1').then((response) => {
-                console.log(response)
-            }, (response) => {
+            Vue.http.get('/api/v1/test/1').then((response) => {}, (response) => {
                 console.log(response);
             });
         },
         onPlaybackStop: function() {
-            Vue.http.get('/api/v1/test/2').then((response) => {
-                console.log(response)
-            }, (response) => {
+            Vue.http.get('/api/v1/test/2').then((response) => {}, (response) => {
                 console.log(response);
             });
         }
+    },
+    mounted: function() {
+        Vue.http.get('/api/v1/volume').then((response) => {
+            if (response.body.success) {
+                $('#volume-range').range({
+                    min: 0,
+                    max: 100,
+                    step: 5,
+                    input: "#volumeText",
+                    start: response.body.data.replace("%", ""),
+                    onChange: function(val) {
+                        Vue.http.get('/api/v1/volume/' + val).then((response) => {}, (response) => {
+                            console.log(response);
+                        });
+                    }
+                });
+            }
+        }, (response) => {
+            console.log(response);
+        });
     }
 }
 const TPLAlarms = {
@@ -56,7 +80,6 @@ const TPLAlarms = {
                     <th>URL</th>
                     <th>Wake-up time</th>
                     <th style="min-width: 180px;">Weekdays</th>
-                    <th>Edit</th>
                     <th>Delete</th>
                 </tr>
             </thead>
@@ -64,7 +87,7 @@ const TPLAlarms = {
                 <tr v-for="alarm in alarms">
                     <td class="collapsing">
                         <div class="ui fitted slider checkbox">
-                            <input type="checkbox" value="alarm.active">
+                            <input type="checkbox" v-model="alarm.active" v-on:change="onActiveChange(alarm)">
                             <label></label>
                         </div>
                     </td>
@@ -73,9 +96,6 @@ const TPLAlarms = {
                     <td>{{ alarm.url }}</td>
                     <td>{{ alarm.alarmTime }}</td>
                     <td>{{ alarm.repeatDays }}</td>
-                    <td class="selectable">
-                        <a href="#">Edit</a>
-                    </td>
                     <td class="selectable" v-on:click="onDelete(alarm)">
                        <a style="cursor: pointer;">Delete</a>
                     </td>
@@ -136,7 +156,6 @@ const TPLAlarms = {
                         </select>
                     </td>
                     <td></td>
-                    <td></td>
                 </tr>
             </tbody>
             <tfoot class="full-width">
@@ -152,7 +171,7 @@ const TPLAlarms = {
             </tfoot> 
         </table>
     </div>
-    </div`,
+</div>`,
     data: function() {
         return {
             loading: false,
@@ -204,7 +223,7 @@ const TPLAlarms = {
         },
         addAlarm: function() {
             var self = this,
-                result = this.alarm,
+                result = jQuery.extend(true, {}, this.alarm),
                 errors = [];
             switch (this.alarm.source) {
                 case 'file':
@@ -215,8 +234,8 @@ const TPLAlarms = {
                     break;
             }
             // Validation checks
-            if (result.name.length < 5) {
-                errors.push("The alarm name must be at least 5 chars long.")
+            if (result.name.length < 3) {
+                errors.push("The alarm name must be at least 3 chars long.")
             }
             if (result.source == "") {
                 errors.push("The alarm source can't be empty.")
@@ -227,12 +246,17 @@ const TPLAlarms = {
             if (!/\d{2}:\d{2}:\d{2}/i.test(result.alarmTime)) {
                 errors.push("The wake-up time is not valid.")
             }
+            if (result.repeatDays.length == 0) {
+                errors.push("You need to select at least one weekday or just 'No-Repeat'.")
+            }
             Vue.set(this, 'errors', errors);
             if (errors.length == 0) {
+                result.repeatDays = result.repeatDays.map(function(item) {
+                    return parseInt(item, 10);
+                }).join(',');
                 Vue.http.post('/api/v1/createAlarm', JSON.stringify(result)).then((response) => {
                     if (response.body.success) {
                         self.reloadTable();
-                        Vue.set(self, 'alarm.name', "behind Jonas is a beer!");
                     }
                 }, (response) => {
                     console.log(response);
@@ -242,11 +266,25 @@ const TPLAlarms = {
         onDelete: function(alarm) {
             var self = this;
             Vue.http.get('/api/v1/deleteAlarm/' + alarm.id).then((response) => {
-                console.log(response);
                 self.reloadTable();
             }, (response) => {
                 console.log(response);
                 vm.setAlarmStatus(false);
+            });
+        },
+        onActiveChange: function(alarm) {
+            this.updateAlarm(alarm.id, {
+                active: alarm.active
+            })
+        },
+        updateAlarm: function(alarmId, alarmSemantics) {
+            var self = this;
+            Vue.http.post('/api/v1/modifyAlarm/' + alarmId.toString(), JSON.stringify(alarmSemantics)).then((response) => {
+                if (response.body.success) {
+                    self.reloadTable();
+                }
+            }, (response) => {
+                console.log(response);
             });
         }
     },
@@ -278,16 +316,67 @@ const TPLAbout = {
             <li>Init project</li>
         </ul>
     </div>
-</div`
+</div>`
 }
 
 const TPLHistory = {
     template: `
 <div class="ui grid stackable" style="margin-bottom: 20px;">
-    <div class="eight wide column">
+    <div class="sixteen wide column">
         <h2>History</h2>
+        <p>This graph shows how long the time has elapsed from the trigger time to the time when the alarm was turned off.</p>
+        <canvas id="historyCanvas"></canvas>
     </div>
-</div`
+</div>`,
+    mounted: function() {
+        Vue.http.get('/api/v1/getHistory').then((response) => {
+            var data = [];
+            var labels = [];
+            for (var i = 0; i < response.body.length; i++) {
+                data.push(response.body[i].duration);
+                labels.push(response.body[i].triggerTime);
+            }
+            var myChart = new Chart(document.getElementById("historyCanvas"), {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Seconds to wake up',
+                        data,
+                    }]
+                },
+                options: {
+                    scales: {
+                        yAxes: [{
+                            ticks: {
+                                beginAtZero: true,
+                                callback: function(value, index, values) {
+                                    var seconds = Math.round(value / 60),
+                                        minutes = value % 60;
+                                    return (seconds < 10 ? '0' : '') + seconds + ':' + (minutes < 10 ? '0' : '') + minutes + ' min';
+                                }
+                            }
+                        }]
+                    },
+                    tooltips: {
+                        enabled: true,
+                        mode: 'single',
+                        callbacks: {
+                            label: function(tooltipItems, data) {
+                                var seconds = Math.round(tooltipItems.yLabel / 60),
+                                    minutes = tooltipItems.yLabel % 60;
+                                return (seconds < 10 ? '0' : '') + seconds + ':' + (minutes < 10 ? '0' : '') + minutes + ' minutes';
+                            }
+                        }
+                    },
+                    responsive: true
+                }
+            });
+        }, (response) => {
+            console.log(response);
+        });
+
+    }
 }
 
 const router = new VueRouter({
@@ -328,7 +417,7 @@ var vm = new Vue({
                 console.log(response);
                 vm.setAlarmStatus(false);
             });
-            setTimeout(this.updateAlarmStatus, 2000);
+            setTimeout(this.updateAlarmStatus, 5000);
         },
         stopAlarms: function() {
             Vue.http.get('/api/v1/stopAlarms').then((response) => {
