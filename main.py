@@ -208,6 +208,10 @@ def do_testing_page(TestId):
     if TestId == 2:
         M.powerSocket(False)
         M.VLCPlayer.stop()
+    if TestId == 3:
+        M.powerSocket(True)
+    if TestId == 4:
+        M.powerSocket(False)
     return flask.jsonify({'success': True})
 
 

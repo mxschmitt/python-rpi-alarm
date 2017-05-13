@@ -21,25 +21,41 @@ const TPLHome = {
         </div>
     </div>
     <div class="eight wide column">
-        <button class="ui button" style="width: 100%" v-on:click="onPlaybackStart">Testing the playback sound system.</button>
+        <button class="ui button" style="width: 100%" v-on:click="onPlaybackStart">Power the playback sound system on and start playing music.</button>
     </div>
     <div class="eight wide column">
-        <button class="ui button" style="width: 100%" v-on:click="onPlaybackStop">Stop the playback sound system.</button>
+        <button class="ui button" style="width: 100%" v-on:click="onPlaybackStop">Stop the playback sound system and the music.</button>
+    </div>
+    <div class="eight wide column">
+        <button class="ui button" style="width: 100%" v-on:click="onPowerOn">Power the playback sound system on.</button>
+    </div>
+    <div class="eight wide column">
+        <button class="ui button" style="width: 100%" v-on:click="onPowerOff">Power off the playback soundsystem.</button>
     </div>
 </div>`,
     methods: {
-        onPlaybackStart: function() {
-            Vue.http.get('/api/v1/test/1').then((response) => {}, (response) => {
+        onPlaybackStart: function () {
+            Vue.http.get('/api/v1/test/1').then((response) => { }, (response) => {
                 console.log(response);
             });
         },
-        onPlaybackStop: function() {
-            Vue.http.get('/api/v1/test/2').then((response) => {}, (response) => {
+        onPlaybackStop: function () {
+            Vue.http.get('/api/v1/test/2').then((response) => { }, (response) => {
+                console.log(response);
+            });
+        },
+        onPowerOn: function () {
+            Vue.http.get('/api/v1/test/3').then((response) => { }, (response) => {
+                console.log(response);
+            });
+        },
+        onPowerOff: function () {
+            Vue.http.get('/api/v1/test/4').then((response) => { }, (response) => {
                 console.log(response);
             });
         }
     },
-    mounted: function() {
+    mounted: function () {
         Vue.http.get('/api/v1/volume').then((response) => {
             if (response.body.success) {
                 $('#volume-range').range({
@@ -48,8 +64,8 @@ const TPLHome = {
                     step: 5,
                     input: "#volumeText",
                     start: response.body.data.replace("%", ""),
-                    onChange: function(val) {
-                        Vue.http.get('/api/v1/volume/' + val).then((response) => {}, (response) => {
+                    onChange: function (val) {
+                        Vue.http.get('/api/v1/volume/' + val).then((response) => { }, (response) => {
                             console.log(response);
                         });
                     }
@@ -172,7 +188,7 @@ const TPLAlarms = {
         </table>
     </div>
 </div>`,
-    data: function() {
+    data: function () {
         return {
             loading: false,
             errors: [],
@@ -192,7 +208,7 @@ const TPLAlarms = {
         }
     },
     methods: {
-        reloadTable: function() {
+        reloadTable: function () {
             var vm = this;
             Vue.set(this, 'loading', true);
             Vue.http.get('/api/v1/getAlarms').then((response) => {
@@ -203,7 +219,7 @@ const TPLAlarms = {
                 console.log(response);
             });
         },
-        loadFileSource: function() {
+        loadFileSource: function () {
             var vm = this;
             switch (this.alarm.source) {
                 case 'file':
@@ -221,7 +237,7 @@ const TPLAlarms = {
                     break;
             }
         },
-        addAlarm: function() {
+        addAlarm: function () {
             var self = this,
                 result = jQuery.extend(true, {}, this.alarm),
                 errors = [];
@@ -251,7 +267,7 @@ const TPLAlarms = {
             }
             Vue.set(this, 'errors', errors);
             if (errors.length == 0) {
-                result.repeatDays = result.repeatDays.map(function(item) {
+                result.repeatDays = result.repeatDays.map(function (item) {
                     return parseInt(item, 10);
                 }).join(',');
                 Vue.http.post('/api/v1/createAlarm', JSON.stringify(result)).then((response) => {
@@ -263,7 +279,7 @@ const TPLAlarms = {
                 });
             }
         },
-        onDelete: function(alarm) {
+        onDelete: function (alarm) {
             var self = this;
             Vue.http.get('/api/v1/deleteAlarm/' + alarm.id).then((response) => {
                 self.reloadTable();
@@ -272,12 +288,12 @@ const TPLAlarms = {
                 vm.setAlarmStatus(false);
             });
         },
-        onActiveChange: function(alarm) {
+        onActiveChange: function (alarm) {
             this.updateAlarm(alarm.id, {
                 active: alarm.active
             })
         },
-        updateAlarm: function(alarmId, alarmSemantics) {
+        updateAlarm: function (alarmId, alarmSemantics) {
             var self = this;
             Vue.http.post('/api/v1/modifyAlarm/' + alarmId.toString(), JSON.stringify(alarmSemantics)).then((response) => {
                 if (response.body.success) {
@@ -288,17 +304,17 @@ const TPLAlarms = {
             });
         }
     },
-    mounted: function() {
+    mounted: function () {
         this.reloadTable();
         this.loadFileSource();
         $('.ui.dropdown').dropdown();
     },
     watch: {
-        'alarm.source': function() {
+        'alarm.source': function () {
             this.loadFileSource();
         }
     },
-    updated: function() {
+    updated: function () {
         $("#alarmFileDropdown").dropdown();
     }
 }
@@ -328,7 +344,7 @@ const TPLHistory = {
         <canvas id="historyCanvas"></canvas>
     </div>
 </div>`,
-    mounted: function() {
+    mounted: function () {
         Vue.http.get('/api/v1/getHistory').then((response) => {
             var data = [];
             var labels = [];
@@ -350,7 +366,7 @@ const TPLHistory = {
                         yAxes: [{
                             ticks: {
                                 beginAtZero: true,
-                                callback: function(value, index, values) {
+                                callback: function (value, index, values) {
                                     var seconds = Math.round(value / 60),
                                         minutes = value % 60;
                                     return (seconds < 10 ? '0' : '') + seconds + ':' + (minutes < 10 ? '0' : '') + minutes + ' min';
@@ -362,7 +378,7 @@ const TPLHistory = {
                         enabled: true,
                         mode: 'single',
                         callbacks: {
-                            label: function(tooltipItems, data) {
+                            label: function (tooltipItems, data) {
                                 var seconds = Math.round(tooltipItems.yLabel / 60),
                                     minutes = tooltipItems.yLabel % 60;
                                 return (seconds < 10 ? '0' : '') + seconds + ':' + (minutes < 10 ? '0' : '') + minutes + ' minutes';
@@ -398,15 +414,15 @@ var vm = new Vue({
         alarmIsNotRunning: true
     },
     methods: {
-        setAlarmStatus: function(status) {
+        setAlarmStatus: function (status) {
             Vue.set(this, 'alarmIsNotRunning', !status);
             return status;
         },
-        updateAlarmStatus: function() {
+        updateAlarmStatus: function () {
             var vm = this;
             Vue.http.get('/api/v1/getAlarms').then((response) => {
                 var status = false;
-                response.body.forEach(function(alarm) {
+                response.body.forEach(function (alarm) {
                     if (alarm.playing) {
                         status = true;
                         return true;
@@ -419,7 +435,7 @@ var vm = new Vue({
             });
             setTimeout(this.updateAlarmStatus, 5000);
         },
-        stopAlarms: function() {
+        stopAlarms: function () {
             Vue.http.get('/api/v1/stopAlarms').then((response) => {
                 if (response.body.success) {
                     vm.setAlarmStatus(false);
@@ -433,7 +449,7 @@ var vm = new Vue({
             console.log("disabled!");
         }
     },
-    mounted: function() {
+    mounted: function () {
         this.updateAlarmStatus();
     }
 });
