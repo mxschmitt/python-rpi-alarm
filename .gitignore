@@ -62,8 +62,8 @@ docs/_build/
 # PyBuilder
 target/
 
-main.log
-main.sqlite
-temp.mp3
+*.log
+*.sqlite
+*.mp3
 __pycache__/*
 
